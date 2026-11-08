@@ -90,6 +90,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   border:3px solid var(--accent);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.25);
   display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px}
 .count{font-size:13px;font-weight:700;color:var(--accent);line-height:1.2;text-transform:uppercase;letter-spacing:.04em}
+#barSum{display:block;white-space:nowrap;font-family:var(--font-mono);color:var(--ink);text-transform:none;letter-spacing:0;font-size:14px}
 .count b{font-family:var(--font-mono);color:var(--ink);font-size:22px}
 .bar .btn{flex:none}
 .bar .btn:disabled{opacity:.4;cursor:default}
@@ -128,6 +129,15 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .pr{width:84px;height:42px;text-align:right;font-family:var(--font-mono);font-size:17px;font-weight:600;border:2px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);padding:0 8px}
 .pr:not(:placeholder-shown){border-color:var(--tc)}
 .est{color:var(--bad);font-weight:600}
+.meter-box{margin-top:10px}
+.mrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-weight:700;font-size:14px}
+.mrow b{font-family:var(--font-mono);font-size:18px}
+.meter{height:12px;border-radius:6px;background:color-mix(in srgb,var(--ink) 14%,var(--surface));overflow:hidden;margin-top:4px;border:1px solid var(--line)}
+.meter i{display:block;height:100%;background:var(--bad);border-radius:6px 0 0 6px;transition:width .25s}
+.meter-box[data-ok="1"] .meter i{background:var(--ok)}
+.mnote{font-size:12px;font-weight:600;color:var(--bad);margin-top:3px}
+.meter-box[data-ok="1"] .mnote{color:var(--ok)}
+.total + .meter-box{margin-top:12px}
 .pu{width:70px;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 </style>
 </head>
@@ -143,6 +153,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
       </div>
     </div>
     <nav id="tabs" role="tablist"></nav>
+    <div class="meter-box" data-meter></div>
   </header>
   <main id="list"></main>
 </div>
@@ -156,6 +167,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   </div>
   <div id="cards"></div>
   <div class="total"><span>Razem</span><span id="sheetTotal">0,00 zł</span></div>
+  <div class="meter-box" data-meter></div>
   <div class="note" id="sheetNote"></div>
 </section>
 
@@ -166,11 +178,12 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   <div class="note" style="margin:0 0 12px">Cena za jednostkę z listy (przy gramach: za 100 g). Ceny „szac.” to moje szacunkowe, niskie ceny hurtowe, a nie ceny Chefs Culinar (te widać tylko po zalogowaniu). Zmień je na swoje, wpisz netto albo brutto, ale wszędzie tak samo. Zapisuje się od razu i jest wspólne dla wszystkich telefonów.</div>
   <div id="pricesList"></div>
   <div class="total"><span>Razem</span><span id="pricesTotal">0,00 zł</span></div>
+  <div class="meter-box" data-meter></div>
   <div class="note" id="pricesNote"></div>
 </section>
 
 <div class="bar" id="bar">
-  <div class="count"><span id="barTab">Wojtek</span><br><b id="total">0</b> poz.</div>
+  <div class="count"><span id="barTab">Wojtek</span><br><b id="total">0</b> poz. <span id="barSum"></span></div>
   <div style="display:flex;gap:8px">
     <button class="btn ghost" id="clear">Wyczyść</button>
     <button class="btn primary" id="make">Utwórz listę</button>
@@ -273,6 +286,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function rowHtml(it){
     var q=qty(it.id);
     var hint=[];if(it.m!=null)hint.push("min "+fmt(it.m)+" "+it.u);if(it.note)hint.push(it.note);
+    var pr=priceOf(it.id);if(pr!=null)hint.push(zl(pr)+" / "+(it.u==="g"?"100 g":it.u)+(isEst(it.id)?" szac.":""));
     return '<div class="row'+(q>0?' on':'')+'" data-id="'+esc(it.id)+'" data-s="'+it.s+'">'+
       '<div class="info"><div class="name">'+esc(it.n)+'</div>'+
       (hint.length?'<div class="hint">'+esc(hint.join(" · "))+'</div>':'')+
@@ -306,7 +320,9 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function renderBar(){
     var n=tabCount(curTab());
     $("barTab").textContent=curTab().name;$("total").textContent=n;
+    var rt=sumTab(curTab());$("barSum").textContent=rt.sum>0?zl(rt.sum):"";
     $("clear").disabled=n===0;
+    renderMeters();
   }
   function renderAll(){renderTabs();renderList();renderBar();}
   function refreshRow(row){
@@ -380,6 +396,15 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     });
     return {sum:sum,missing:missing,est:est};
   }
+  var MIN_ORDER=700;
+  function renderMeters(){
+    var all=sumAll(),ok=all.sum>=MIN_ORDER,pct=Math.min(100,Math.round(all.sum/MIN_ORDER*100));
+    var html='<div class="mrow"><span>Wszystkie zakładki / min. '+MIN_ORDER+' zł</span><b>'+zl(all.sum)+'</b></div>'+
+      '<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="'+MIN_ORDER+'" aria-valuenow="'+Math.round(all.sum)+'"><i style="width:'+pct+'%"></i></div>'+
+      '<div class="mnote">'+(ok?'Minimum Chefs Culinar spełnione':('Brakuje '+zl(MIN_ORDER-all.sum)+' do minimum '+MIN_ORDER+' zł'))+'</div>';
+    var els=document.querySelectorAll("[data-meter]");
+    for(var k=0;k<els.length;k++){els[k].innerHTML=html;els[k].setAttribute("data-ok",ok?"1":"0");}
+  }
   function sumAll(){
     var sum=0,missing=0,est=0;
     TABS.forEach(function(t){var r=sumTab(t);sum+=r.sum;missing+=r.missing;est+=r.est;});
@@ -427,7 +452,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     if(!n)h='<div class="empty">Nic nie wybrano.</div>';
     $("cards").innerHTML=h;
     var all=sumAll();
-    $("sheetTotal").textContent=zl(all.sum);
+    renderMeters();$("sheetTotal").textContent=zl(all.sum);
     $("sheetNote").textContent=missingText(all.missing,all.est);
   }
   function show(view){
@@ -474,7 +499,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     updatePriceTotals();
   }
   function updatePriceTotals(){
-    var all=sumAll();
+    renderMeters();var all=sumAll();
     $("pricesTotal").textContent=zl(all.sum);
     $("pricesNote").textContent=missingText(all.missing,all.est);
   }
