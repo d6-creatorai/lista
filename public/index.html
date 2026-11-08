@@ -105,6 +105,29 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .line small{display:block;color:var(--muted);font-size:12px}
 .empty{padding:30px 0;color:var(--muted)}
 .toast{font-size:14px;color:var(--accent);align-self:center}
+.paper{margin-bottom:16px;border-color:var(--tc);padding-bottom:12px}
+.paper h4{color:var(--tc);border-bottom-color:var(--tc)}
+.paper .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.paper .head h4{margin:0;flex:1;border:0;font-size:24px}
+.paper .btn.small{height:38px;padding:0 12px;border-color:var(--tc);color:var(--ink)}
+.paper .sub{display:flex;justify-content:space-between;gap:12px;padding-top:8px;font-weight:700}
+.paper .sub span:last-child,.total span:last-child{font-family:var(--font-mono)}
+.line em{font-style:normal;color:var(--muted);font-size:12px;display:block;text-align:right;font-weight:400}
+.total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;background:var(--ink);color:var(--bg);border-radius:6px;padding:14px 16px;font-family:var(--font-display);font-size:26px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.total span:last-child{font-size:28px}
+.note{font-size:13px;color:var(--muted);margin:8px 2px 0}
+#sheetView,#pricesView{padding-bottom:40px}
+#pricesView{padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.ptab{margin-bottom:16px;border:2px solid var(--tc);border-radius:4px;background:var(--surface);overflow:hidden}
+.ptab h4{margin:0;padding:8px 12px;background:var(--tc);color:var(--on-c);font-family:var(--font-display);font-size:20px;letter-spacing:.05em;text-transform:uppercase}
+.prow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
+.prow.on{background:color-mix(in srgb,var(--tc) 12%,var(--surface))}
+.prow .info{flex:1;min-width:0}
+.prow .name{font-size:16px}
+.prow .sum{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.pr{width:84px;height:42px;text-align:right;font-family:var(--font-mono);font-size:17px;font-weight:600;border:2px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);padding:0 8px}
+.pr:not(:placeholder-shown){border-color:var(--tc)}
+.pu{width:70px;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 </style>
 </head>
 <body>
@@ -126,10 +149,23 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 <section id="sheetView" hidden>
   <div class="actions">
     <button class="btn ghost" id="back">← Wróć</button>
-    <button class="btn primary" id="copy">Kopiuj listę</button>
+    <button class="btn primary" id="copyAll">Kopiuj wszystko</button>
+    <button class="btn" id="prices">Ceny Chefs Culinar</button>
     <span class="toast" id="toast" role="status"></span>
   </div>
-  <div class="paper" id="paper"></div>
+  <div id="cards"></div>
+  <div class="total"><span>Razem</span><span id="sheetTotal">0,00 zł</span></div>
+  <div class="note" id="sheetNote"></div>
+</section>
+
+<section id="pricesView" hidden>
+  <div class="actions">
+    <button class="btn ghost" id="pback">← Wróć do list</button>
+  </div>
+  <div class="note" style="margin:0 0 12px">Cena za jednostkę z listy (przy gramach: za 100 g). Wpisz cenę netto lub brutto, ale zawsze tak samo. Zapisuje się od razu i jest wspólna dla wszystkich telefonów.</div>
+  <div id="pricesList"></div>
+  <div class="total"><span>Razem</span><span id="pricesTotal">0,00 zł</span></div>
+  <div class="note" id="pricesNote"></div>
 </section>
 
 <div class="bar" id="bar">
@@ -184,8 +220,8 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   TABS.forEach(function(t){t.groups.forEach(function(g){g.items.forEach(function(it){it.id=t.id+":"+slug(it.n);});});});
 
   /* ---------- Stan: q[id]=[ilość,czas], c[id]={tab,n,u,t,del} ---------- */
-  var state={q:{},c:{}};
-  try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.q&&p.c)state=p;}}catch(e){}
+  var state={q:{},c:{},p:{}};
+  try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.q&&p.c){state=p;state.p=state.p||{};}}}catch(e){}
   function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 
   var cur=TABS[0].id;
@@ -310,33 +346,125 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     clearTimer=setTimeout(resetClear,3000);
   });
 
-  /* ---------- Gotowa lista (tylko bieżąca zakładka) ---------- */
+  /* ---------- Ceny ---------- */
+  function factor(it){return it.u==="g"?100:1;}
+  function priceOf(id){var e=state.p[id];return e&&e[0]!=null?e[0]:null;}
+  function lineSum(it){var pr=priceOf(it.id);return pr==null?null:qty(it.id)/factor(it)*pr;}
+  function zl(x){return x.toFixed(2).replace(".",",")+" zł";}
+  function setPrice(id,v){state.p[id]=[v,Date.now()];saveLocal();schedulePush();}
+  function sumTab(t){
+    var sum=0,missing=0;
+    allItems(t).forEach(function(i){
+      if(qty(i.id)<=0)return;
+      var l=lineSum(i);if(l==null)missing++;else sum+=l;
+    });
+    return {sum:sum,missing:missing};
+  }
+  function sumAll(){
+    var sum=0,missing=0;
+    TABS.forEach(function(t){var r=sumTab(t);sum+=r.sum;missing+=r.missing;});
+    return {sum:sum,missing:missing};
+  }
+  function missingText(n){return n?("Bez ceny: "+n+" poz. (nie wliczone w sumę). Wpisz je w „Ceny Chefs Culinar”."):"";}
+
+  /* ---------- Gotowe listy (wszystkie zakładki, każda osobno) ---------- */
   function today(){return new Date().toLocaleDateString("pl-PL");}
-  function currentLines(){return allItems(curTab()).filter(function(i){return qty(i.id)>0;});}
-  function buildText(){
-    var out=["LISTA ZAMÓWIENIA – "+curTab().name.toUpperCase()+" – "+today(),""];
-    currentLines().forEach(function(i){out.push("- "+i.n+" — "+fmt(qty(i.id))+" "+i.u);});
+  function linesOf(t){return allItems(t).filter(function(i){return qty(i.id)>0;});}
+  function tabText(t){
+    var out=[t.name.toUpperCase()+" – "+today()],r=sumTab(t);
+    linesOf(t).forEach(function(i){
+      var l=lineSum(i);
+      out.push("- "+i.n+" — "+fmt(qty(i.id))+" "+i.u+(l!=null?" (≈ "+zl(l)+")":""));
+    });
+    if(r.sum>0)out.push("Razem: "+zl(r.sum));
     return out.join("\n");
   }
-  $("make").addEventListener("click",function(){
-    var its=currentLines();
-    var h='<h3>Lista zamówienia</h3><div class="meta">'+today()+' · pozycji: '+its.length+'</div><h4>'+esc(curTab().name)+'</h4>';
-    its.forEach(function(i){
-      h+='<div class="line"><span>'+esc(i.n)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</span><span>'+fmt(qty(i.id))+' '+esc(i.u)+'</span></div>';
+  function allText(){
+    var parts=TABS.filter(function(t){return linesOf(t).length;}).map(tabText);
+    var r=sumAll();
+    return parts.join("\n\n")+(r.sum>0?"\n\nRAZEM WSZYSTKO: "+zl(r.sum):"");
+  }
+  function renderSheet(){
+    var h="",n=0;
+    TABS.forEach(function(t){
+      var its=linesOf(t);if(!its.length)return;n++;
+      var r=sumTab(t);
+      h+='<div class="paper" style="--tc:var(--c-'+t.id+')"><div class="head"><h4>'+esc(t.name)+'</h4>'+
+        '<button class="btn small" data-copy="'+t.id+'">Kopiuj</button></div>'+
+        '<div class="meta">'+today()+' · pozycji: '+its.length+'</div>';
+      its.forEach(function(i){
+        var l=lineSum(i);
+        h+='<div class="line"><span>'+esc(i.n)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</span><span>'+fmt(qty(i.id))+' '+esc(i.u)+
+          (l!=null?'<em>'+zl(l)+'</em>':'')+'</span></div>';
+      });
+      h+='<div class="sub"><span>Razem '+esc(t.name)+'</span><span>'+(r.sum>0?zl(r.sum):"—")+'</span></div></div>';
     });
-    $("paper").innerHTML=h;
-    $("mainView").hidden=true;$("bar").hidden=true;$("sheetView").hidden=false;window.scrollTo(0,0);
-  });
-  $("back").addEventListener("click",function(){
-    $("sheetView").hidden=true;$("mainView").hidden=false;$("bar").hidden=false;$("toast").textContent="";
-  });
-  $("copy").addEventListener("click",function(){
-    function ok(){$("toast").textContent="Skopiowano";}
+    if(!n)h='<div class="empty">Nic nie wybrano.</div>';
+    $("cards").innerHTML=h;
+    var all=sumAll();
+    $("sheetTotal").textContent=zl(all.sum);
+    $("sheetNote").textContent=missingText(all.missing);
+  }
+  function show(view){
+    ["mainView","sheetView","pricesView"].forEach(function(v){$(v).hidden=v!==view;});
+    $("bar").hidden=view!=="mainView";
+    window.scrollTo(0,0);
+  }
+  $("make").addEventListener("click",function(){renderSheet();$("toast").textContent="";show("sheetView");});
+  $("back").addEventListener("click",function(){show("mainView");renderAll();});
+
+  function copyText(txt,msg){
+    function ok(){$("toast").textContent=msg;}
     function fail(){
-      var r=document.createRange();r.selectNodeContents($("paper"));var s=window.getSelection();s.removeAllRanges();s.addRange(r);
-      $("toast").textContent="Zaznaczono. Skopiuj ręcznie.";
+      var ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="position:fixed;left:0;top:0;opacity:.01";
+      document.body.appendChild(ta);ta.focus();ta.select();
+      var done=false;try{done=document.execCommand("copy");}catch(e){}
+      document.body.removeChild(ta);
+      $("toast").textContent=done?msg:"Nie udało się skopiować";
     }
-    try{navigator.clipboard.writeText(buildText()).then(ok,fail);}catch(e){fail();}
+    try{navigator.clipboard.writeText(txt).then(ok,fail);}catch(e){fail();}
+  }
+  $("copyAll").addEventListener("click",function(){copyText(allText(),"Skopiowano wszystko");});
+  $("cards").addEventListener("click",function(e){
+    var b=e.target.closest("[data-copy]");if(!b)return;
+    var t=TABS.filter(function(x){return x.id===b.getAttribute("data-copy");})[0];
+    copyText(tabText(t),"Skopiowano: "+t.name);
+  });
+
+  /* ---------- Widok cen ---------- */
+  function renderPrices(){
+    var h="";
+    TABS.forEach(function(t){
+      h+='<div class="ptab" style="--tc:var(--c-'+t.id+')"><h4>'+esc(t.name)+'</h4>';
+      allItems(t).forEach(function(i){
+        var pr=priceOf(i.id),q=qty(i.id);
+        h+='<div class="prow'+(q>0?' on':'')+'" data-id="'+esc(i.id)+'"><div class="info"><div class="name">'+esc(i.n)+'</div>'+
+          '<div class="sum">'+(q>0?(fmt(q)+' '+esc(i.u)+(lineSum(i)!=null?' = '+zl(lineSum(i)):'')):'')+'</div></div>'+
+          '<input class="pr" inputmode="decimal" placeholder="0,00" aria-label="Cena: '+esc(i.n)+'" value="'+(pr==null?'':String(pr).replace(".",","))+'">'+
+          '<span class="pu">zł / '+(i.u==="g"?"100 g":esc(i.u))+'</span></div>';
+      });
+      h+='</div>';
+    });
+    $("pricesList").innerHTML=h;
+    updatePriceTotals();
+  }
+  function updatePriceTotals(){
+    var all=sumAll();
+    $("pricesTotal").textContent=zl(all.sum);
+    $("pricesNote").textContent=missingText(all.missing);
+  }
+  $("prices").addEventListener("click",function(){renderPrices();show("pricesView");});
+  $("pback").addEventListener("click",function(){renderSheet();show("sheetView");});
+  $("pricesList").addEventListener("input",function(e){
+    var inp=e.target.closest(".pr");if(!inp)return;
+    var row=inp.closest(".prow"),id=row.getAttribute("data-id");
+    var raw=inp.value.replace(",",".").trim(),v=raw===""?null:parseFloat(raw);
+    if(v!==null&&(isNaN(v)||v<0))return;
+    setPrice(id,v);
+    var it=null;TABS.forEach(function(t){allItems(t).forEach(function(i){if(i.id===id)it=i;});});
+    var sm=row.querySelector(".sum");
+    if(it&&qty(id)>0)sm.textContent=fmt(qty(id))+" "+it.u+(lineSum(it)!=null?" = "+zl(lineSum(it)):"");
+    updatePriceTotals();
   });
 
   /* ---------- Synchronizacja z serwerem ---------- */
@@ -348,7 +476,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function schedulePush(){clearTimeout(pushTimer);setStatus("pending");pushTimer=setTimeout(sync,500);}
 
   function diffUp(srv){
-    var up={q:{},c:{}},any=false;
+    var up={q:{},c:{},p:{}},any=false;
     Object.keys(state.q).forEach(function(id){
       var e=state.q[id],s=srv.q[id];
       if(s?e[1]>s[1]:e[0]>0){up.q[id]=e;any=true;}
@@ -356,6 +484,10 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     Object.keys(state.c).forEach(function(id){
       var e=state.c[id],s=srv.c[id];
       if(s?e.t>s.t:!e.del){up.c[id]=e;any=true;}
+    });
+    Object.keys(state.p).forEach(function(id){
+      var e=state.p[id],s=srv.p[id];
+      if(s?e[1]>s[1]:e[0]!=null){up.p[id]=e;any=true;}
     });
     return any?up:null;
   }
@@ -369,17 +501,21 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
       var s=srv.c[id],e=state.c[id];
       if(!e||s.t>e.t){state.c[id]=s;changed=true;}
     });
+    Object.keys(srv.p).forEach(function(id){
+      var s=srv.p[id],e=state.p[id];
+      if(!e||s[1]>e[1]){state.p[id]=s;if(!e||e[0]!==s[0])changed=true;}
+    });
     return changed;
   }
   function typing(){
     var a=document.activeElement;
-    return a&&(a.classList.contains("q")||a.id==="newName"||a.id==="newUnit");
+    return a&&(a.classList.contains("q")||a.classList.contains("pr")||a.id==="newName"||a.id==="newUnit");
   }
   function rerender(){
     if(typing()){pendingRender=true;return;}
-    pendingRender=false;renderAll();
+    pendingRender=false;renderAll();if(!$("sheetView").hidden)renderSheet();if(!$("pricesView").hidden)renderPrices();
   }
-  function norm(x){return {q:(x&&x.q)||{},c:(x&&x.c)||{}};}
+  function norm(x){return {q:(x&&x.q)||{},c:(x&&x.c)||{},p:(x&&x.p)||{}};}
 
   async function sync(){
     if(syncing){again=true;return;}

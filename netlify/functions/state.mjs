@@ -15,7 +15,7 @@ const json = (data, status = 200) =>
   });
 
 const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
-const clean = (s) => ({ q: isObj(s?.q) ? s.q : {}, c: isObj(s?.c) ? s.c : {} });
+const clean = (s) => ({ q: isObj(s?.q) ? s.q : {}, c: isObj(s?.c) ? s.c : {}, p: isObj(s?.p) ? s.p : {} });
 
 function merge(base, inc) {
   const maxT = Date.now() + 60_000;
@@ -27,6 +27,17 @@ function merge(base, inc) {
     if (!Number.isFinite(v) || !Number.isFinite(t)) continue;
     const cur = base.q[id];
     if (!cur || t > cur[1]) base.q[id] = [Math.max(0, Math.min(100000, v)), t];
+  }
+
+  // Ceny (Chefs Culinar): p[id] = [cena w zł albo null, czas]
+  for (const [id, e] of Object.entries(inc.p)) {
+    if (id.length > 80 || !Array.isArray(e)) continue;
+    const v = e[0] === null ? null : Number(e[0]);
+    const t = Math.min(Number(e[1]), maxT);
+    if (v !== null && (!Number.isFinite(v) || v < 0 || v > 100000)) continue;
+    if (!Number.isFinite(t)) continue;
+    const cur = base.p[id];
+    if (!cur || t > cur[1]) base.p[id] = [v, t];
   }
 
   for (const [id, e] of Object.entries(inc.c)) {
