@@ -127,6 +127,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .prow .sum{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .pr{width:84px;height:42px;text-align:right;font-family:var(--font-mono);font-size:17px;font-weight:600;border:2px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);padding:0 8px}
 .pr:not(:placeholder-shown){border-color:var(--tc)}
+.est{color:var(--bad);font-weight:600}
 .pu{width:70px;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
 </style>
 </head>
@@ -162,7 +163,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   <div class="actions">
     <button class="btn ghost" id="pback">← Wróć do list</button>
   </div>
-  <div class="note" style="margin:0 0 12px">Cena za jednostkę z listy (przy gramach: za 100 g). Wpisz cenę netto lub brutto, ale zawsze tak samo. Zapisuje się od razu i jest wspólna dla wszystkich telefonów.</div>
+  <div class="note" style="margin:0 0 12px">Cena za jednostkę z listy (przy gramach: za 100 g). Ceny „szac.” to moje szacunkowe, niskie ceny hurtowe, a nie ceny Chefs Culinar (te widać tylko po zalogowaniu). Zmień je na swoje, wpisz netto albo brutto, ale wszędzie tak samo. Zapisuje się od razu i jest wspólne dla wszystkich telefonów.</div>
   <div id="pricesList"></div>
   <div class="total"><span>Razem</span><span id="pricesTotal">0,00 zł</span></div>
   <div class="note" id="pricesNote"></div>
@@ -172,7 +173,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   <div class="count"><span id="barTab">Wojtek</span><br><b id="total">0</b> poz.</div>
   <div style="display:flex;gap:8px">
     <button class="btn ghost" id="clear">Wyczyść</button>
-    <button class="btn primary" id="make" disabled>Utwórz listę</button>
+    <button class="btn primary" id="make">Utwórz listę</button>
   </div>
 </div>
 
@@ -217,7 +218,25 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     ]}]}
   ];
   function slug(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/ł/g,"l").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
-  TABS.forEach(function(t){t.groups.forEach(function(g){g.items.forEach(function(it){it.id=t.id+":"+slug(it.n);});});});
+  /* Szacunkowe niskie ceny hurtowe w zł za jednostkę z listy (przy gramach: za 100 g).
+     To NIE są ceny Chefs Culinar (te widać tylko po zalogowaniu). Można je zmienić w widoku cen. */
+  var DEF={
+    "Halloumi":8.5,"Mozzarella":3,"Jogurty":3.5,"Śmietana 18%":5,"Śmietana 30%":8.5,"Mleko":3.2,
+    "Ser cheddar tarty":9,"Twaróg":4.5,"Masło":7.5,"Dżem truskawkowy":6,"Smalec":4,"Boczek":22,"Feta":7,
+    "Skyr waniliowy":3.8,"Skyr naturalny":3.8,"Serek waniliowy":2.4,"Olej rzepakowy":8,"Parmezan":16,
+    "Musztarda":3.5,"Mleko kokosowe":5.5,"Mleko owsiane":6.5,
+    "Rukola":5,"Mix sałat":5,"Kapusta pekińska":6,"Ogórki świeże":2.5,"Papryka":3.5,"Rzodkiewka":2.5,"Kiełki":3.5,
+    "Pomidorki koktajlowe":6,"Pomidor malinowy":3,"Cebula czerwona":1,"Cebula biała":3,"Jajka rozm. M":0.8,
+    "Biała kapusta":6,"Lodowa":5,"Marchewka":0.5,"Koperek":2.5,"Czosnek obrany":15,"Ziemniaki":60,"Awokado":4.5,
+    "Bazylia":6,"Cukinia":3.5,"Szpinak świeży":6,"Szczypiorek":3,
+    "Borówki":4.5,"Nektarynka":1.8,"Śliwki":0.6,"Pomarańcze":1.8,"Cytryny":1,"Winogrona ciemne":1.2,
+    "Filet z kurczaka":21,"Schab":20,"Karkówka wieprzowa":19,
+    "Cukier":3.8,"Sól":1.5,"Mąka":2.5,"Fasola biała/czerwona":4,"Ciecierzyca":4,"Soczewica":4,"Ryż":4.5,
+    "Kasza gryczana":7,"Kasza jęczmienna":4,"Kasza orkiszowa":9,"Cukier w saszetkach":18,
+    "Serwetki":8,"Kawa":55,"Herbata":14
+  };
+  var DEFID={};
+  TABS.forEach(function(t){t.groups.forEach(function(g){g.items.forEach(function(it){it.id=t.id+":"+slug(it.n);if(DEF[it.n]!=null)DEFID[it.id]=DEF[it.n];});});});
 
   /* ---------- Stan: q[id]=[ilość,czas], c[id]={tab,n,u,t,del} ---------- */
   var state={q:{},c:{},p:{}};
@@ -287,7 +306,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function renderBar(){
     var n=tabCount(curTab());
     $("barTab").textContent=curTab().name;$("total").textContent=n;
-    $("make").disabled=n===0;$("clear").disabled=n===0;
+    $("clear").disabled=n===0;
   }
   function renderAll(){renderTabs();renderList();renderBar();}
   function refreshRow(row){
@@ -348,24 +367,30 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 
   /* ---------- Ceny ---------- */
   function factor(it){return it.u==="g"?100:1;}
-  function priceOf(id){var e=state.p[id];return e&&e[0]!=null?e[0]:null;}
+  function priceOf(id){var e=state.p[id];if(e)return e[0];return DEFID[id]!=null?DEFID[id]:null;}
+  function isEst(id){return !state.p[id]&&DEFID[id]!=null;}
   function lineSum(it){var pr=priceOf(it.id);return pr==null?null:qty(it.id)/factor(it)*pr;}
   function zl(x){return x.toFixed(2).replace(".",",")+" zł";}
   function setPrice(id,v){state.p[id]=[v,Date.now()];saveLocal();schedulePush();}
   function sumTab(t){
-    var sum=0,missing=0;
+    var sum=0,missing=0,est=0;
     allItems(t).forEach(function(i){
       if(qty(i.id)<=0)return;
-      var l=lineSum(i);if(l==null)missing++;else sum+=l;
+      var l=lineSum(i);if(l==null)missing++;else{sum+=l;if(isEst(i.id))est++;}
     });
-    return {sum:sum,missing:missing};
+    return {sum:sum,missing:missing,est:est};
   }
   function sumAll(){
-    var sum=0,missing=0;
-    TABS.forEach(function(t){var r=sumTab(t);sum+=r.sum;missing+=r.missing;});
-    return {sum:sum,missing:missing};
+    var sum=0,missing=0,est=0;
+    TABS.forEach(function(t){var r=sumTab(t);sum+=r.sum;missing+=r.missing;est+=r.est;});
+    return {sum:sum,missing:missing,est:est};
   }
-  function missingText(n){return n?("Bez ceny: "+n+" poz. (nie wliczone w sumę). Wpisz je w „Ceny Chefs Culinar”."):"";}
+  function missingText(n,est){
+    var t=[];
+    if(est)t.push("Pozycje z oznaczeniem „szac.” ("+est+") liczone wg szacunkowych cen, nie cen Chefs Culinar. Popraw je w „Ceny Chefs Culinar”.");
+    if(n)t.push("Bez ceny: "+n+" poz. (nie wliczone w sumę).");
+    return t.join(" ");
+  }
 
   /* ---------- Gotowe listy (wszystkie zakładki, każda osobno) ---------- */
   function today(){return new Date().toLocaleDateString("pl-PL");}
@@ -395,7 +420,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
       its.forEach(function(i){
         var l=lineSum(i);
         h+='<div class="line"><span>'+esc(i.n)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</span><span>'+fmt(qty(i.id))+' '+esc(i.u)+
-          (l!=null?'<em>'+zl(l)+'</em>':'')+'</span></div>';
+          (l!=null?'<em>'+(isEst(i.id)?'≈ ':'')+zl(l)+'</em>':'')+'</span></div>';
       });
       h+='<div class="sub"><span>Razem '+esc(t.name)+'</span><span>'+(r.sum>0?zl(r.sum):"—")+'</span></div></div>';
     });
@@ -403,7 +428,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     $("cards").innerHTML=h;
     var all=sumAll();
     $("sheetTotal").textContent=zl(all.sum);
-    $("sheetNote").textContent=missingText(all.missing);
+    $("sheetNote").textContent=missingText(all.missing,all.est);
   }
   function show(view){
     ["mainView","sheetView","pricesView"].forEach(function(v){$(v).hidden=v!==view;});
@@ -441,7 +466,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
         h+='<div class="prow'+(q>0?' on':'')+'" data-id="'+esc(i.id)+'"><div class="info"><div class="name">'+esc(i.n)+'</div>'+
           '<div class="sum">'+(q>0?(fmt(q)+' '+esc(i.u)+(lineSum(i)!=null?' = '+zl(lineSum(i)):'')):'')+'</div></div>'+
           '<input class="pr" inputmode="decimal" placeholder="0,00" aria-label="Cena: '+esc(i.n)+'" value="'+(pr==null?'':String(pr).replace(".",","))+'">'+
-          '<span class="pu">zł / '+(i.u==="g"?"100 g":esc(i.u))+'</span></div>';
+          '<span class="pu">zł / '+(i.u==="g"?"100 g":esc(i.u))+(isEst(i.id)?'<br><b class="est">szac.</b>':'')+'</span></div>';
       });
       h+='</div>';
     });
@@ -451,7 +476,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function updatePriceTotals(){
     var all=sumAll();
     $("pricesTotal").textContent=zl(all.sum);
-    $("pricesNote").textContent=missingText(all.missing);
+    $("pricesNote").textContent=missingText(all.missing,all.est);
   }
   $("prices").addEventListener("click",function(){renderPrices();show("pricesView");});
   $("pback").addEventListener("click",function(){renderSheet();show("sheetView");});
@@ -461,6 +486,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
     var raw=inp.value.replace(",",".").trim(),v=raw===""?null:parseFloat(raw);
     if(v!==null&&(isNaN(v)||v<0))return;
     setPrice(id,v);
+    var pu=row.querySelector(".pu .est");if(pu){pu.previousSibling&&pu.previousSibling.remove&&pu.previousSibling.remove();pu.remove();}
     var it=null;TABS.forEach(function(t){allItems(t).forEach(function(i){if(i.id===id)it=i;});});
     var sm=row.querySelector(".sum");
     if(it&&qty(id)>0)sm.textContent=fmt(qty(id))+" "+it.u+(lineSum(it)!=null?" = "+zl(lineSum(it)):"");
