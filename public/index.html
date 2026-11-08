@@ -251,6 +251,10 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   var DEFID={};
   TABS.forEach(function(t){t.groups.forEach(function(g){g.items.forEach(function(it){it.id=t.id+":"+slug(it.n);if(DEF[it.n]!=null)DEFID[it.id]=DEF[it.n];});});});
 
+  /* Alfabetycznie (polskie litery) w każdej grupie */
+  function byName(a,b){return a.n.localeCompare(b.n,"pl",{sensitivity:"base"});}
+  TABS.forEach(function(t){t.groups.forEach(function(g){g.items.sort(byName);});});
+
   /* ---------- Stan: q[id]=[ilość,czas], c[id]={tab,n,u,t,del} ---------- */
   var state={q:{},c:{},p:{}};
   try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.q&&p.c){state=p;state.p=state.p||{};}}}catch(e){}
@@ -271,7 +275,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
       var c=state.c[k];
       if(c.tab===t.id&&!c.del)cs.push({id:k,n:c.n,m:null,u:c.u,s:c.u==="g"?100:1,note:"",custom:true,t:c.t});
     });
-    cs.sort(function(a,b){return a.t-b.t;});
+    cs.sort(byName);
     return out.concat(cs);
   }
   function tabCount(t){return allItems(t).filter(function(i){return qty(i.id)>0;}).length;}
