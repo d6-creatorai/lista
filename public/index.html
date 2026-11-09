@@ -425,33 +425,25 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
   function today(){return new Date().toLocaleDateString("pl-PL");}
   function linesOf(t){return allItems(t).filter(function(i){return qty(i.id)>0;});}
   function tabText(t){
-    var out=[t.name.toUpperCase()+" – "+today()],r=sumTab(t);
-    linesOf(t).forEach(function(i){
-      var l=lineSum(i);
-      out.push("- "+i.n+" — "+fmt(qty(i.id))+" "+i.u+(l!=null?" (≈ "+zl(l)+")":""));
-    });
-    if(r.sum>0)out.push("Razem: "+zl(r.sum));
+    var out=[t.name.toUpperCase()+" – "+today()];
+    linesOf(t).forEach(function(i){out.push("- "+i.n+" — "+fmt(qty(i.id))+" "+i.u);});
     return out.join("\n");
   }
   function allText(){
     var parts=TABS.filter(function(t){return linesOf(t).length;}).map(tabText);
-    var r=sumAll();
-    return parts.join("\n\n")+(r.sum>0?"\n\nRAZEM WSZYSTKO: "+zl(r.sum):"");
+    return parts.join("\n\n");
   }
   function renderSheet(){
     var h="",n=0;
     TABS.forEach(function(t){
       var its=linesOf(t);if(!its.length)return;n++;
-      var r=sumTab(t);
       h+='<div class="paper" style="--tc:var(--c-'+t.id+')"><div class="head"><h4>'+esc(t.name)+'</h4>'+
         '<button class="btn small" data-copy="'+t.id+'">Kopiuj</button></div>'+
         '<div class="meta">'+today()+' · pozycji: '+its.length+'</div>';
       its.forEach(function(i){
-        var l=lineSum(i);
-        h+='<div class="line"><span>'+esc(i.n)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</span><span>'+fmt(qty(i.id))+' '+esc(i.u)+
-          (l!=null?'<em>'+(isEst(i.id)?'≈ ':'')+zl(l)+'</em>':'')+'</span></div>';
+        h+='<div class="line"><span>'+esc(i.n)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</span><span>'+fmt(qty(i.id))+' '+esc(i.u)+'</span></div>';
       });
-      h+='<div class="sub"><span>Razem '+esc(t.name)+'</span><span>'+(r.sum>0?zl(r.sum):"—")+'</span></div></div>';
+      h+='</div>';
     });
     if(!n)h='<div class="empty">Nic nie wybrano.</div>';
     $("cards").innerHTML=h;
